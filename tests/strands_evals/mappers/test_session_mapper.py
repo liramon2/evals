@@ -1,6 +1,7 @@
 """Tests for the SessionMapper base class."""
 
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from strands_evals.mappers.session_mapper import SessionMapper
 from strands_evals.types.trace import Session
@@ -9,7 +10,7 @@ from strands_evals.types.trace import Session
 class _ConcreteMapper(SessionMapper):
     """Minimal concrete subclass for testing base-class methods."""
 
-    def map_to_session(self, spans: list) -> Session:
+    def map_to_session(self, data: Any, session_id: str) -> Session:
         raise NotImplementedError
 
 
@@ -21,7 +22,7 @@ class TestParseTimestamp:
 
     def test_none_returns_aware_utc(self):
         result = self.mapper.parse_timestamp(None)
-        assert result.tzinfo is not None
+        assert result.tzinfo == timezone.utc
 
     def test_iso_string_with_z(self):
         result = self.mapper.parse_timestamp("2026-07-22T16:34:19.917561Z")
@@ -42,13 +43,15 @@ class TestParseTimestamp:
 
     def test_aware_datetime_passthrough(self):
         dt = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        assert self.mapper.parse_timestamp(dt) == dt
+        result = self.mapper.parse_timestamp(dt)
+        assert result.tzinfo == timezone.utc
+        assert result == dt
 
     def test_naive_datetime_gets_utc(self):
         """A naive datetime is assumed UTC and returned aware."""
         naive = datetime(2024, 6, 15, 12, 0, 0)
         result = self.mapper.parse_timestamp(naive)
-        assert result.tzinfo is not None
+        assert result.tzinfo == timezone.utc
         assert result == datetime(2024, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
 
     def test_non_utc_datetime_normalized(self):
@@ -62,7 +65,7 @@ class TestParseTimestamp:
     def test_iso_string_without_offset_gets_utc(self):
         """An ISO string with no offset is assumed UTC."""
         result = self.mapper.parse_timestamp("2024-01-01T00:00:00")
-        assert result.tzinfo is not None
+        assert result.tzinfo == timezone.utc
         assert result == datetime(2024, 1, 1, tzinfo=timezone.utc)
 
     def test_iso_string_with_offset_normalized(self):
@@ -74,4 +77,27 @@ class TestParseTimestamp:
     def test_invalid_string_returns_aware_utc(self):
         """An unparseable string falls back to current UTC time."""
         result = self.mapper.parse_timestamp("not-a-timestamp")
-        assert result.tzinfo is not None
+        assert result.tzinfo == timezone.utc
+
+    def test_boundary_iso_string_overflow_falls_back(self):
+        """An ISO string near datetime.max with non-UTC offset falls back to now(utc)."""
+        result = self.mapper.parse_timestamp("9999-12-31T23:59:59-05:00")
+        assert result.tzinfo == timezone.utc
+
+    def test_boundary_datetime_overflow_falls_back(self):
+        """A datetime near datetime.min with non-UTC offset falls back to now(utc)."""
+        plus5 = timezone(timedelta(hours=5))
+        dt = datetime(1, 1, 1, 0, 0, 0, tzinfo=plus5)
+        result = self.mapper.parse_timestamp(dt)
+        assert result.tzinfo == timezone.utc
+
+    def test_float_seconds_epoch(self):
+        """A float epoch in seconds (< 1e12) is converted to aware UTC datetime."""
+        result = self.mapper.parse_timestamp(1700000000.5)
+        assert result.tzinfo == timezone.utc
+        assert result.year == 2023
+
+    def test_unsupported_type_falls_back(self):
+        """An unsupported type (e.g. list) falls back to current UTC time."""
+        result = self.mapper.parse_timestamp([1, 2, 3])
+        assert result.tzinfo == timezone.utc
