@@ -869,11 +869,11 @@ def _run_case(experiment_path: Path, selector: str, out_path: Path) -> int:
 
 @pytest.mark.parametrize(
     ("selector", "expected_name"),
-    [("0", "0"), ("2", "case_2")],
-    ids=["name-beats-index", "by-index-keeps-full-run-label"],
+    [("0", "0"), ("2", None)],
+    ids=["name-beats-index", "by-index-unnamed-stays-unnamed"],
 )
 def test_run_case_runs_only_selected_case_against_all_evaluators(
-    multi_case_experiment_file: Path, tmp_path: Path, selector: str, expected_name: str
+    multi_case_experiment_file: Path, tmp_path: Path, selector: str, expected_name: str | None
 ):
     out_path = tmp_path / "reports.json"
     assert _run_case(multi_case_experiment_file, selector, out_path) == 0
@@ -893,7 +893,11 @@ def test_run_case_runs_only_selected_case_against_all_evaluators(
             "matches no case name or index 0-1; available cases: 0: (unnamed), 1: 'b'",
         ),
         ([{"input": "x"}, {"name": "b", "input": "y"}], "+1", "matches no case name or index 0-1"),
-        ([{"name": "a", "input": "x"}, {"name": "a", "input": "y"}], "a", "matches 2 cases"),
+        (
+            [{"name": "a", "input": "x"}, {"name": "a", "input": "y"}],
+            "a",
+            "matches 2 cases with that name; select one by index: 0, 1",
+        ),
         ([], "0", "the experiment has no cases"),
     ],
     ids=["index-out-of-range", "non-digit-index", "duplicate-name", "empty"],

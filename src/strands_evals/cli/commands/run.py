@@ -139,25 +139,23 @@ def _build_ad_hoc_experiment(
 def _select_case(cases: list[Case], selector: str) -> Case:
     """Pick one case by exact name, falling back to a 0-based index.
 
-    Name wins so a case literally named `"1"` stays addressable by name. An unnamed case
-    selected by index is named `case_<index>` so its label matches what a full run uses.
+    Name wins so a case literally named `"1"` stays addressable by name.
 
     Raises:
         ValueError: If the selector matches no case or a duplicated name.
     """
     if not cases:
         raise ValueError(f"--case '{selector}' cannot be selected: the experiment has no cases.")
-    named = [case for case in cases if case.name == selector]
-    if len(named) == 1:
-        return named[0]
-    if len(named) > 1:
-        raise ValueError(f"--case '{selector}' matches {len(named)} cases with that name; select by index instead.")
+    matches = [i for i, case in enumerate(cases) if case.name == selector]
+    if len(matches) == 1:
+        return cases[matches[0]]
+    if len(matches) > 1:
+        indices = ", ".join(map(str, matches))
+        raise ValueError(
+            f"--case '{selector}' matches {len(matches)} cases with that name; select one by index: {indices}"
+        )
     if selector.isascii() and selector.isdigit() and int(selector) < len(cases):
-        index = int(selector)
-        case = cases[index]
-        if case.name is None:
-            case.name = f"case_{index}"
-        return case
+        return cases[int(selector)]
     available = ", ".join(
         f"{i}: {case.name!r}" if case.name is not None else f"{i}: (unnamed)" for i, case in enumerate(cases)
     )
@@ -463,7 +461,7 @@ def add_subparser(
         "--case",
         metavar="NAME_OR_INDEX",
         default=None,
-        help="run only the case with this name or 0-based index from the experiment",
+        help="run only the case with this name, or its 0-based index if no case has that name",
     )
 
     ad_hoc = parser.add_argument_group("ad-hoc case (no experiment file)")
