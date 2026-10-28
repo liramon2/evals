@@ -184,6 +184,9 @@ strands-evals/
 │   ├── tools/
 │   │   └── evaluation_tools.py               # Helpers used by evaluators
 │   │
+│   ├── skills/                               # Agent skills shipped in the wheel
+│   │   └── session-experiment/SKILL.md       # Convert local agent sessions into experiments
+│   │
 │   ├── cli/                                  # `strands-evals` console script
 │   │   ├── __main__.py                       # `python -m strands_evals.cli` entry
 │   │   ├── main.py                           # argparse dispatch
