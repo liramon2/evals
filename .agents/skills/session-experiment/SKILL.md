@@ -1,6 +1,6 @@
 ---
 name: session-experiment
-description: Use when the user wants to turn past local agent conversations (Claude Code, Kiro CLI, Strands CLI, or any other harness) into strands-evals experiments. Locates the relevant session files on the local filesystem and extracts their user inputs and assistant responses. Skip for traces stored in trace providers (CloudWatch, Langfuse, OpenSearch).
+description: Use when the user wants to turn past local agent conversations (Claude Code, Kiro CLI, Strands CLI, or any other harness) into strands-evals experiments. Locates the relevant session files on the local filesystem and extracts their episodes, turns with a focused user goal. Skip for traces stored in trace providers (CloudWatch, Langfuse, OpenSearch).
 version: 0.1.0
 ---
 
@@ -42,26 +42,14 @@ The following session file paths are best-effort and can change between releases
 
 **Other harnesses**: find the harness's session store (its docs, or recently modified `*.json` / `*.jsonl` files under its home directory) and apply the same prompt criteria.
 
-List the matching session file paths, grouped by harness. If nothing matches, say which locations you searched and what criteria you applied and any near misses, then ask the user whether to widen the search.
+List the matching session file paths, grouped by harness. Include their conversation id, harness type, and session timestamp. If nothing matches, say which locations you searched and what criteria you applied and any near misses, then ask the user whether to widen the search.
 
-### 2. Read sessions
+### 2. Process sessions
 
-For each session file from step 1, use `jq` to extract the user inputs and assistant responses, in order, as `{role, text}`. Skip tool calls, tool results, reasoning, and harness bookkeeping. Session files can be large, so stream them through `jq` instead of reading them whole. Derive path names with shell parameter expansion (`${f##*/}`) instead of `basename`.
+Delegate the session files from step 1 to subagents that follow [assets/segmenter.md](assets/segmenter.md). Give each subagent up to 10 session file paths (mutually exclusive between subagents), the segmenter document's absolute path, the session timestamp, and any content criteria from the prompt. If that would take more than 5 subagents, spawn 5 and split the files evenly among them. The user's prompt can override either cap. Wait for every subagent to complete before continuing to the next step.
 
-If the known fields below don't fit, print a condensed view of the file's shape:
-
-```bash
-jq -c '[paths(scalars) | map(if type == "number" then "[]" else . end) | join(".")] | unique' <file> | sort | uniq -c | sort -rn | head -20
-```
-
-From it, find the field that marks each record's type (user, assistant, tool, ...) and the field holding its text, then filter on them: `jq -c 'select(<is user or assistant text>) | {role: <role>, text: <text>}' <file>`. Known fields, best-effort:
-
-- **Claude Code**: user is `type == "user"` and `origin.kind == "human"` (without `origin`, skip `isMeta`, `tool_result`-only, interrupt, and `<task-notification>` lines). Assistant is `type == "assistant"`. The text is in `message.content`, a string or `text` blocks. Slash command input is in `<command-args>`.
-- **Strands CLI**: `data.messages[]` by `role`. The text is in `content[].text`; skip messages whose `content[]` has no `text` block (`toolUse`/`toolResult`-only messages are tool traffic, not turns).
-- **Kiro CLI**: user is `payload.type == "user"`; assistant is `payload.type == "assistant"` with `payload.operationType == "Say"`. The text is in `payload.content`. This format is for `sess_*/messages.jsonl` files. The flat `cli/<session_uuid>.jsonl` store uses a different record shape; use the shape-discovery command above for it.
-
-If the user gave content criteria (ex. a conversation topic), keep only the sessions that match them. Match conversation criteria against the extracted turns. Track the user inputs, assistant messages, conversation id, session timestamp, and source harness for each session file.
+If you cannot spawn subagents, follow the segmenter document's steps yourself for every session file.
 
 ## Output
 
-Stop after step 2. Report the output of the latest step. Converting these sessions into an experiment is not part of this skill yet, so don't write experiment code; ask the user what they want to do with the results you found.
+Stop after step 2. Report the outputs from all subagent runs (or your own output from step 2 if no subagents were spawned). Converting these sessions into an experiment is not part of this skill yet, so don't write experiment code; ask the user what they want to do with the results you found.
