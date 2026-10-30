@@ -20,7 +20,7 @@ From it, find the field that marks each record's type (user, assistant, tool, ..
 - **Strands CLI**: `data.messages[]` by `role`. The text is in `content[].text`; skip messages whose `content[]` has no `text` block (`toolUse`/`toolResult`-only messages are tool traffic, not turns).
 - **Kiro CLI**: user is `payload.type == "user"`; assistant is `payload.type == "assistant"` with `payload.operationType == "Say"`. The text is in `payload.content`. This format is for `sess_*/messages.jsonl` files. The flat `cli/<session_uuid>.jsonl` store uses a different record shape; use the shape-discovery command above for it.
 
-If you were given content criteria (ex. a conversation topic), keep only the sessions that match them. Match conversation criteria against the extracted turns. Keep the user inputs and assistant messages for each session file in memory.
+If you were given content criteria (ex. a conversation topic), keep only the sessions that match them. Match conversation criteria against the extracted turns. Keep the user inputs in full and the first 500 characters of each assistant message for each session file.
 
 ### 2. Segment conversations
 
@@ -28,7 +28,7 @@ Split each session's turns from step 1 into episodes: turns that serve one user 
 
 - **Starts a new episode**: a new task, an unrelated question, or a switch to a different artifact or topic.
 - **Continues the episode**: a follow-up, clarification, correction, retry, approval, answer to the assistant's question, or a change in scope of the same deliverable. This includes inputs that can't stand alone (ex. "do it", "accurate?"), errors pasted from running the assistant's suggestion, requests to undo the assistant's change, and returning to the goal after a brief side question.
-- **No goal**: drop episodes with nothing to evaluate: no request (ex. greetings, thanks), a request that only changes local setup (ex. "install the session-experiment skill"), or a request that requires a specific tool or skill another agent may not have.
+- **No goal**: drop episodes with nothing to evaluate: no request (ex. greetings, thanks), a request that only changes local setup (ex. "install the session-experiment skill"), or a request that depends on a specific skill, MCP, or tool another agent may not have. Episodes requiring common tools, like file, shell, and web tools, may be kept.
 
 ## Output
 
