@@ -12,7 +12,15 @@ Converts recorded local agent sessions into a strands-evals experiment.
 
 ### 1. Ask clarifying questions
 
-A context-dependent input is an episode's opening user message that can't be understood on its own because it relies on context outside it, such as earlier turns in the session (ex. "now do the same for the parser"), workspace files (ex. "why is this test failing?"), or demonstrative phrasing (ex. this, that, here). If the prompt doesn't say how to handle them, ask the user with your harness's question tool if it has one, otherwise as a plain-text question with numbered options, and wait for the answer. If you can't ask (ex. a non-interactive run), use Fill and say so in the output.
+Ask each question below that the prompt doesn't answer, in one batch, with your harness's question tool if it has one, otherwise as plain-text questions with numbered options, and wait for the answers. If you can't ask (ex. a non-interactive run), use each question's first option and say so in the output.
+
+**Harnesses.** Ask when the prompt doesn't say which harnesses to search (ex. "my sessions from last week").
+
+Question: Which agent harnesses' sessions should I include?
+1. All (Recommended): every harness with sessions on this machine (ex. Claude Code, Codex, Kiro CLI, Strands CLI).
+2. Only <current harness>: only sessions from the harness running this skill.
+
+**Context-dependent inputs.** A context-dependent input is an episode's opening user message that can't be understood on its own because it relies on context outside it, such as earlier turns in the session (ex. "now do the same for the parser"), workspace files (ex. "why is this test failing?"), or demonstrative phrasing (ex. this, that, here).
 
 Question: How should I handle user messages that depend on outside context (ex. "this file", "that test")?
 1. Fill (Recommended): rewrite the input to include the context it relies on, so it stands alone.
@@ -23,7 +31,7 @@ Question: How should I handle user messages that depend on outside context (ex. 
 
 Find every session file on the local filesystem that matches the user's criteria. Don't open whole files to do it: session files can be large, so read metadata, use `ls -t`, `find -newermt`, `grep`, `jq`, or targeted reads. Read the criteria from the prompt:
 
-- **Harness**: default to all harnesses.
+- **Harness**: the harnesses named in the prompt or chosen in step 1.
 - **Date range**: resolve relative dates in the user's local time zone; session timestamps are UTC. A session matches if any of its activity falls in the range; mtime alone isn't enough.
 - **Workspace**: "here" means the current working directory; default to all workspaces.
 - **Content**: defer filtering on conversation content to step 3.
