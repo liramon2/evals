@@ -10,14 +10,23 @@ Converts recorded local agent sessions into a strands-evals experiment.
 
 ## Steps
 
-### 1. Locate sessions
+### 1. Ask clarifying questions
+
+A context-dependent input is an episode's opening user message that can't be understood on its own because it relies on context outside it, such as earlier turns in the session (ex. "now do the same for the parser"), workspace files (ex. "why is this test failing?"), or demonstrative phrasing (ex. this, that, here). If the prompt doesn't say how to handle them, ask the user with your harness's question tool if it has one, otherwise as a plain-text question with numbered options, and wait for the answer. If you can't ask (ex. a non-interactive run), use Fill and say so in the output.
+
+Question: How should I handle user messages that depend on outside context (ex. "this file", "that test")?
+1. Fill (Recommended): rewrite the input to include the context it relies on, so it stands alone.
+2. Drop: filter out episodes whose input depends on outside context.
+3. Keep: keep the input as written.
+
+### 2. Locate sessions
 
 Find every session file on the local filesystem that matches the user's criteria. Don't open whole files to do it: session files can be large, so read metadata, use `ls -t`, `find -newermt`, `grep`, `jq`, or targeted reads. Read the criteria from the prompt:
 
 - **Harness**: default to all harnesses.
 - **Date range**: resolve relative dates in the user's local time zone; session timestamps are UTC. A session matches if any of its activity falls in the range; mtime alone isn't enough.
 - **Workspace**: "here" means the current working directory; default to all workspaces.
-- **Content**: defer filtering on conversation content to step 2.
+- **Content**: defer filtering on conversation content to step 3.
 
 The following session file paths are best-effort and can change between releases. If a path is missing or looks different, check the linked doc.
 
@@ -49,17 +58,17 @@ The following session file paths are best-effort and can change between releases
 
 List the matching session file paths, grouped by harness. Include their conversation id, harness type, and session timestamp. If nothing matches, say which locations you searched and what criteria you applied and any near misses, then ask the user whether to widen the search.
 
-### 2. Process sessions
+### 3. Process sessions
 
-Delegate the session files from step 1 to subagents that follow [assets/segmenter.md](assets/segmenter.md). Give each subagent up to 10 session file paths (mutually exclusive between subagents), the segmenter document's absolute path, each session file's timestamp, and any content criteria from the prompt. If that would take more than 5 subagents, spawn 5 and split the files evenly among them. The user's prompt can override either cap. Wait for every subagent to complete before continuing to the next step.
+Delegate the session files from step 2 to subagents that follow [assets/segmenter.md](assets/segmenter.md). Give each subagent up to 10 session file paths (mutually exclusive between subagents), the segmenter document's absolute path, each session file's timestamp, any content criteria from the prompt, and the context-based input handling from step 1 (fill, drop, keep, other). If that would take more than 5 subagents, spawn 5 and split the files evenly among them. The user's prompt can override either cap. Wait for every subagent to complete before continuing to the next step.
 
 If you cannot spawn subagents, follow the segmenter document's steps yourself for every session file.
 
 If no episodes were returned, report the dropped reasons and ask the user whether to widen the search.
 
-### 3. Suggest evaluators
+### 4. Suggest evaluators
 
-Group the `failure`s from every episode's error analysis in step 2 into the failure modes below, assigning each failure to exactly one mode (the most specific that fits), and count the episodes that show each mode. Every evaluator runs on every case, so suggest an evaluator only when its failure mode shows up in at least 10% of all episodes. Map each failure mode to its evaluator:
+Group the `failure`s from every episode's error analysis in step 3 into the failure modes below, assigning each failure to exactly one mode (the most specific that fits), and count the episodes that show each mode. Every evaluator runs on every case, so suggest an evaluator only when its failure mode shows up in at least 10% of all episodes. Map each failure mode to its evaluator:
 
 - **GoalSuccessRateEvaluator**: the episode's `summary` outcome is abandoned, unresolved, or cut off mid-work, or the user needed several retries to reach the goal (ex. "still failing, third time I'm asking").
 - **CorrectnessEvaluator**: the agent gave a wrong fact, fix, or computed result (ex. "that's not the default, it's 30 seconds").
@@ -78,7 +87,7 @@ Group the `failure`s from every episode's error analysis in step 2 into the fail
 
 Only suggest evaluators listed above. If no failure mode reaches 10% of episodes, suggest GoalSuccessRateEvaluator alone.
 
-### 4. Output the experiment file
+### 5. Output the experiment file
 
 Write the experiment JSON file to the directory the user gives, defaulting to `./experiments`. Create the directory if it doesn't exist. Name the file `<timestamp>_<uuid>.json`, where `<timestamp>` is the current UTC time as `YYYYMMDDTHHMMSSZ` and `<uuid>` is a random UUID4.
 
@@ -103,7 +112,7 @@ Write the experiment JSON file to the directory the user gives, defaulting to `.
 }
 ```
 
-Write one case per kept episode from step 2, and one evaluator entry per evaluator from step 3.
+Write one case per kept episode from step 3, and one evaluator entry per evaluator from step 4.
 
 - `name`: a short kebab-case phrase generated from the episode's `summary`, unique within the file.
 - `input`: the episode's user input.
